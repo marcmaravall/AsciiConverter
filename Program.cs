@@ -1,4 +1,7 @@
-﻿using System.Drawing;
+using System;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Text;
 
 class Program
@@ -12,21 +15,23 @@ class Program
             Console.WriteLine("Enter the path where you want to save the ASCII art:");
             string outputPath = Console.ReadLine();
             Console.WriteLine("Converting image to ASCII art...");
+
             char[][] asciiArt = GetAsciiArtFromImage(imagePath);
 
-            string output = "";
+            StringBuilder output = new StringBuilder();
             for (int i = 0; i < asciiArt.Length; i++)
             {
                 for (int j = 0; j < asciiArt[i].Length; j++)
                 {
-                    output += asciiArt[i][j];
+                    output.Append(asciiArt[i][j]);
+                    output.Append(' ');
                 }
-                output += "\n";
+                output.AppendLine();
             }
 
             try
             {
-                File.WriteAllText(@"C:\Users\Marc\ascii.txt", output, Encoding.UTF8);
+                File.WriteAllText(outputPath, output.ToString(), Encoding.UTF8);
                 Console.WriteLine($"ASCII art saved in '{outputPath}'.");
             }
             catch (Exception ex)
@@ -42,21 +47,36 @@ class Program
         using (Bitmap bitmap = new Bitmap(imagePath))
         {
             string asciiChars = "@#S%?*+;:,. ";
+            int width = bitmap.Width;
+            int height = bitmap.Height;
 
-            char[][] asciiArt = new char[bitmap.Height][]; 
+            char[][] asciiArt = new char[height][];
+            BitmapData bitmapData = bitmap.LockBits(
+                new Rectangle(0, 0, width, height),
+                ImageLockMode.ReadOnly,
+                PixelFormat.Format24bppRgb
+            );
 
-            for (int y = 0; y < bitmap.Height; y++)
+            unsafe
             {
-                asciiArt[y] = new char[bitmap.Width];
+                byte* ptr = (byte*)bitmapData.Scan0;
+                int stride = bitmapData.Stride;
 
-                for (int x = 0; x < bitmap.Width; x++)
+                for (int y = 0; y < height; y++)
                 {
-                    Color pixelColor = bitmap.GetPixel(x, y);
-                    int grayValue = (int)((pixelColor.R + pixelColor.G + pixelColor.B)/3);
-                    char asciiChar = GetAsciiCharForGrayValue(grayValue, asciiChars);
-                    asciiArt[y][x] = asciiChar;
+                    asciiArt[y] = new char[width];
+                    for (int x = 0; x < width; x++)
+                    {
+                        byte b = ptr[y * stride + x * 3];
+                        byte g = ptr[y * stride + x * 3 + 1];
+                        byte r = ptr[y * stride + x * 3 + 2];
+                        int grayValue = (r + g + b) / 3;
+                        asciiArt[y][x] = GetAsciiCharForGrayValue(grayValue, asciiChars);
+                    }
                 }
             }
+
+            bitmap.UnlockBits(bitmapData);
             return asciiArt;
         }
     }
